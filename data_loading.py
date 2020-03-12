@@ -30,6 +30,13 @@ TRAIN = "train/"
 TEST = "test/"
 
 
+def load_all_data_without_split():
+    X_train, y_train, X_test, y_test = load_all_data()
+    X = np.concatenate((X_train, X_test), axis=0)
+    Y = np.concatenate((y_train, y_test), axis=0)
+    return X, Y
+
+
 def load_all_data():
     # Load "X" (the neural network's training and testing inputs)
 
