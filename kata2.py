@@ -228,7 +228,7 @@ def main():
     accuracy = accuracy_score(expected_outputs_test, test_pred)
 
     print("Test accuracy score:", accuracy)
-    assert accuracy > 0.7
+    assert accuracy > 0.90
 
 
 if __name__ == '__main__':
