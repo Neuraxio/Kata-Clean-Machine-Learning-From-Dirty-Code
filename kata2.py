@@ -3,6 +3,7 @@ import shutil
 
 import numpy as np
 from neuraxle.base import BaseStep, NonFittableMixin
+from neuraxle.hyperparams.distributions import Choice, RandInt, LogUniform, Boolean
 from neuraxle.hyperparams.space import HyperparameterSpace
 from neuraxle.metaopt.auto_ml import AutoML, InMemoryHyperparamsRepository, validation_splitter, \
     RandomSearchHyperparameterSelectionStrategy
@@ -13,19 +14,13 @@ from neuraxle.steps.numpy import NumpyConcatenateInnerFeatures, NumpyShapePrinte
 from neuraxle.steps.output_handlers import OutputTransformerWrapper
 from neuraxle.steps.sklearn import SKLearnWrapper
 from neuraxle.union import FeatureUnion
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
-from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import RidgeClassifierCV, RidgeClassifier, LogisticRegressionCV, LogisticRegression
 from sklearn.metrics import accuracy_score, mean_squared_error
-from sklearn.naive_bayes import GaussianNB, BernoulliNB
-from sklearn.neighbors import KNeighborsClassifier, RadiusNeighborsClassifier, NearestCentroid
-from sklearn.neural_network import MLPClassifier
-from sklearn.preprocessing import Normalizer
-from sklearn.semi_supervised import LabelSpreading, LabelPropagation
-from sklearn.svm import LinearSVC
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
 
-from auto_ml_steps import ChooseOneStepOf, ChooseOneOrManyStepsOf
+from auto_ml_steps import ChooseOneStepOf
 from data_loading import load_all_data_without_split
 
 
@@ -151,14 +146,56 @@ def main():
             # TODO in kata 2: Add normalization right here (if using other classifiers)
             #      https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.normalize.html
             ChooseOneStepOf([
-                SKLearnWrapper(DecisionTreeClassifier(), HyperparameterSpace({ })),
-                SKLearnWrapper(ExtraTreeClassifier(), HyperparameterSpace({ })),
-                Pipeline([OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(RidgeClassifier(), HyperparameterSpace({}))]).set_name('RidgeClassifier'),
-                Pipeline([OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(RidgeClassifierCV(), HyperparameterSpace({}))]).set_name('RidgeClassifierCV'),
-                Pipeline([OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(KNeighborsClassifier(), HyperparameterSpace({}))]).set_name('kNeighborsClassifier'),
-                Pipeline([OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(LogisticRegression(), HyperparameterSpace({}))]).set_name('LogisticRegression'),
-                Pipeline([OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(LogisticRegressionCV(), HyperparameterSpace({}))]).set_name('LogisticRegressionCv'),
-                Pipeline([OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(RandomForestClassifier(), HyperparameterSpace({}))]).set_name('RandomForestClassifier'),
+                SKLearnWrapper(DecisionTreeClassifier(), HyperparameterSpace({
+                    'criterion': Choice(['gini', 'entropy']),
+                    'splitter': Choice(['best', 'random']),
+                    'min_samples_leaf': RandInt(2, 5),
+                    'min_samples_split': RandInt(1, 3),
+                })),
+                SKLearnWrapper(ExtraTreeClassifier(), HyperparameterSpace({
+                    'criterion': Choice(['gini', 'entropy']),
+                    'splitter': Choice(['best', 'random']),
+                    'min_samples_leaf': RandInt(2, 5),
+                    'min_samples_split': RandInt(1, 3),
+                })),
+                Pipeline([OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(RidgeClassifier(), HyperparameterSpace({
+                    'alpha': Choice([(0.0, 1.0, 10.0), (0.0, 10.0, 100.0)]),
+                    'fit_intercept' : Boolean(),
+                    'normalize' : Boolean(),
+                }))]).set_name('RidgeClassifier'),
+                Pipeline([OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(RidgeClassifierCV(), HyperparameterSpace({
+                    'alpha': Choice([(0.0, 1.0, 10.0), (0.0, 10.0, 100.0)]),
+                    'fit_intercept' : Boolean(),
+                    'normalize' : Boolean(),
+                }))]).set_name('RidgeClassifierCV'),
+                Pipeline([OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(KNeighborsClassifier(), HyperparameterSpace({
+                    'n_neighbors': RandInt(3, 15),
+                    'algorithm': Choice(['auto', 'ball_tree', 'kd_tree', 'brute']),
+                    'leaf_size': RandInt(10, 50)
+                }))]).set_name('kNeighborsClassifier'),
+                Pipeline([OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(LogisticRegression(), HyperparameterSpace({
+                    'C': LogUniform(0.01, 10.0),
+                    'fit_intercept': Boolean(),
+                    'dual': Boolean(),
+                    'penalty': Choice(['l1', 'l2']),
+                    'solver': Choice(['lbfgs', 'liblinear']),
+                    'max_iter': RandInt(20, 200),
+                }))]).set_name('LogisticRegression'),
+                Pipeline([OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(LogisticRegressionCV(), HyperparameterSpace({
+                    'C': LogUniform(0.01, 10.0),
+                    'fit_intercept' : Boolean(),
+                    'dual' : Boolean(),
+                    'penalty' : Choice(['l1', 'l2']),
+                    'solver' : Choice(['lbfgs', 'liblinear']),
+                    'max_iter': RandInt(20, 200),
+                }))]).set_name('LogisticRegressionCv'),
+                Pipeline([OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(RandomForestClassifier(), HyperparameterSpace({
+                    'n_estimators' : RandInt(50, 600),
+                    'criterion': Choice(['gini', 'entropy']),
+                    'min_samples_leaf': RandInt(2, 5),
+                    'min_samples_split': RandInt(1, 3),
+                    'bootstrap' : Boolean(),
+                }))]).set_name('RandomForestClassifier')
             ]),
             # TODO in kata 2: Try other classifiers different than the DecisionTreeClassifier just above:
             #      https://scikit-learn.org/stable/modules/multiclass.html
@@ -181,15 +218,15 @@ def main():
 
     # When
     data_inputs, expected_outputs = load_all_data_without_split()
-    auto_ml = auto_ml.fit(data_inputs, expected_outputs)
+    data_inputs_train, expected_outputs_train, data_inputs_test, expected_outputs_test = validation_splitter(0.20)(data_inputs, expected_outputs)
 
-    # Then
+    auto_ml = auto_ml.fit(data_inputs_train, expected_outputs_train)
     p = auto_ml.get_best_model()
 
-    _, _, validation_data_inputs, validation_expected_outputs = validation_splitter(0.20)(data_inputs, expected_outputs)
-    y_pred = p.predict(validation_data_inputs)
+    # Then
+    test_pred = p.predict(data_inputs_test)
+    accuracy = accuracy_score(expected_outputs_test, test_pred)
 
-    accuracy = accuracy_score(validation_expected_outputs, y_pred)
     print("Test accuracy score:", accuracy)
     assert accuracy > 0.7
 
