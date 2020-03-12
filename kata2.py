@@ -10,7 +10,7 @@ from neuraxle.hyperparams.distributions import RandInt, LogUniform
 from neuraxle.hyperparams.space import HyperparameterSamples, HyperparameterSpace
 from neuraxle.metaopt.auto_ml import AutoML, InMemoryHyperparamsRepository, validation_splitter, \
     RandomSearchHyperparameterSelectionStrategy
-from neuraxle.metaopt.callbacks import ScoringCallback, MetricCallback
+from neuraxle.metaopt.callbacks import ScoringCallback
 from neuraxle.pipeline import Pipeline
 from neuraxle.steps.flow import SelectNonEmptyDataInputs, CHOICE_HYPERPARAM, OPTIONAL_ENABLED_HYPERPARAM
 from neuraxle.steps.flow import TrainOnlyWrapper
@@ -19,9 +19,8 @@ from neuraxle.steps.output_handlers import OutputTransformerWrapper
 from neuraxle.steps.sklearn import SKLearnWrapper
 from neuraxle.union import FeatureUnion
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import RidgeClassifierCV, RidgeClassifier, LogisticRegressionCV, LogisticRegression
-from sklearn.metrics import accuracy_score, mean_squared_error
-from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import RidgeClassifier, LogisticRegression
+from sklearn.metrics import accuracy_score
 from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
 
 from data_loading import load_all_data
@@ -63,7 +62,7 @@ class Optional(ForceHandleOnlyMixin, MetaStepMixin, BaseStep):
         self.nullify_hyperparams = nullify_hyperparams
 
     def _fit_data_container(self, data_container: DataContainer, context: ExecutionContext) -> (
-    'BaseStep', DataContainer):
+            'BaseStep', DataContainer):
         """
         Nullify wrapped step hyperparams, and don't fit the wrapped step.
 
@@ -83,7 +82,7 @@ class Optional(ForceHandleOnlyMixin, MetaStepMixin, BaseStep):
         return self
 
     def _fit_transform_data_container(self, data_container: DataContainer, context: ExecutionContext) -> (
-    'BaseStep', DataContainer):
+            'BaseStep', DataContainer):
         """
         Nullify wrapped step hyperparams, and don't fit_transform the wrapped step.
 
@@ -423,81 +422,76 @@ def main():
         shutil.rmtree(cache_folder)
     os.makedirs(cache_folder, exist_ok=True)
 
-    auto_ml = AutoML(
-        pipeline=Pipeline([
-            TrainOnlyWrapper(NumpyShapePrinter(custom_message="Input shape before feature union")),
-            FeatureUnion([
-                Pipeline([
-                    NumpyFFT(),
-                    NumpyAbs(),
-                    FeatureUnion([
-                        NumpyFlattenDatum(),  # Reshape from 3D to flat 2D: flattening data except on batch size
-                        FFTPeakBinWithValue()  # Extract 2D features from the 3D FFT bins
-                    ], joiner=NumpyConcatenateInnerFeatures())
-                ]),
-                NumpyMean(),
-                NumpyMedian(),
-                NumpyMin(),
-                NumpyMax()
-            ], joiner=NumpyConcatenateInnerFeatures()),
-            TrainOnlyWrapper(NumpyShapePrinter(custom_message="Shape after feature union, before classification")),
-            # Shape: [batch_size, remade_features]
-            # TODO in kata 2, optional: Add some feature selection right here for the motivated ones:
-            #      https://scikit-learn.org/stable/modules/feature_selection.html
-            # TODO in kata 2, optional: Add normalization right here (if using other classifiers)
-            #      https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.normalize.html
-            ChooseOneStepOf([
-                SKLearnWrapper(DecisionTreeClassifier(), HyperparameterSpace({
-                    'criterion': Choice(['gini', 'entropy']),
-                    'splitter': Choice(['best', 'random']),
-                    'min_samples_leaf': RandInt(2, 5),
-                    'min_samples_split': RandInt(1, 3),
-                })),
-                SKLearnWrapper(ExtraTreeClassifier(), HyperparameterSpace({
-                    'criterion': Choice(['gini', 'entropy']),
-                    'splitter': Choice(['best', 'random']),
-                    'min_samples_leaf': RandInt(2, 5),
-                    'min_samples_split': RandInt(1, 3),
-                })),
-                Pipeline(
-                    [OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(RidgeClassifier(), HyperparameterSpace({
-                        'alpha': Choice([(0.0, 1.0, 10.0), (0.0, 10.0, 100.0)]),
-                        'fit_intercept': Boolean(),
-                        'normalize': Boolean(),
-                    }))]).set_name('RidgeClassifier'),
-                Pipeline(
-                    [OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(RidgeClassifierCV(), HyperparameterSpace({
-                        'alpha': Choice([(0.0, 1.0, 10.0), (0.0, 10.0, 100.0)]),
-                        'fit_intercept': Boolean(),
-                        'normalize': Boolean(),
-                    }))]).set_name('RidgeClassifierCV'),
-                #Pipeline([OutputTransformerWrapper(NumpyRavel()),
-                #          SKLearnWrapper(KNeighborsClassifier(), HyperparameterSpace({
-                #              'n_neighbors': RandInt(3, 15),
-                #              'algorithm': Choice(['auto', 'ball_tree', 'kd_tree', 'brute']),
-                #              'leaf_size': RandInt(10, 50)
-                #          }))]).set_name('kNeighborsClassifier'),
-                Pipeline(
-                    [OutputTransformerWrapper(NumpyRavel()), SKLearnWrapper(LogisticRegression(), HyperparameterSpace({
-                        'C': LogUniform(0.01, 10.0),
-                        'fit_intercept': Boolean(),
-                        'dual': Boolean(),
-                        'penalty': Choice(['l1', 'l2']),
-                        'max_iter': RandInt(20, 200),
-                    }))]).set_name('LogisticRegression'),
-                Pipeline([OutputTransformerWrapper(NumpyRavel()),
-                          SKLearnWrapper(RandomForestClassifier(), HyperparameterSpace({
-                              'n_estimators': RandInt(50, 600),
-                              'criterion': Choice(['gini', 'entropy']),
-                              'min_samples_leaf': RandInt(2, 5),
-                              'min_samples_split': RandInt(1, 3),
-                              'bootstrap': Boolean(),
-                          }))]).set_name('RandomForestClassifier')
+    decision_tree_classifier = SKLearnWrapper(
+        DecisionTreeClassifier(), HyperparameterSpace({
+            'criterion': Choice(['gini', 'entropy']), 'splitter': Choice(['best', 'random']),
+            'min_samples_leaf': RandInt(2, 5), 'min_samples_split': RandInt(1, 3), }))
+
+    extra_tree_classifier = SKLearnWrapper(
+        ExtraTreeClassifier(), HyperparameterSpace({
+            'criterion': Choice(['gini', 'entropy']), 'splitter': Choice(['best', 'random']),
+            'min_samples_leaf': RandInt(2, 5), 'min_samples_split': RandInt(1, 3), }))
+
+    ridge_classifier = Pipeline([
+        OutputTransformerWrapper(NumpyRavel()),
+        SKLearnWrapper(RidgeClassifier(), HyperparameterSpace({
+            'alpha': Choice([(0.0, 1.0, 10.0), (0.0, 10.0, 100.0)]), 'fit_intercept': Boolean(), 'normalize': Boolean()
+        }))
+    ]).set_name('RidgeClassifier')
+
+    logistic_regression = Pipeline([
+        OutputTransformerWrapper(NumpyRavel()),
+        SKLearnWrapper(LogisticRegression(), HyperparameterSpace({
+            'C': LogUniform(0.01, 10.0), 'fit_intercept': Boolean(), 'dual': Boolean(),
+            'penalty': Choice(['l1', 'l2']), 'max_iter': RandInt(20, 200)
+        }))
+    ]).set_name('LogisticRegression')
+
+    random_forest_classifier = Pipeline([
+        OutputTransformerWrapper(NumpyRavel()),
+        SKLearnWrapper(RandomForestClassifier(), HyperparameterSpace({
+            'n_estimators': RandInt(50, 600), 'criterion': Choice(['gini', 'entropy']),
+            'min_samples_leaf': RandInt(2, 5), 'min_samples_split': RandInt(1, 3),
+            'bootstrap': Boolean()
+        }))
+    ]).set_name('RandomForestClassifier')
+
+    pipeline = Pipeline([
+        TrainOnlyWrapper(NumpyShapePrinter(custom_message="Input shape before feature union")),
+        FeatureUnion([
+            Pipeline([
+                NumpyFFT(),
+                NumpyAbs(),
+                FeatureUnion([
+                    NumpyFlattenDatum(),  # Reshape from 3D to flat 2D: flattening data except on batch size
+                    FFTPeakBinWithValue()  # Extract 2D features from the 3D FFT bins
+                ], joiner=NumpyConcatenateInnerFeatures())
             ]),
-            TrainOnlyWrapper(NumpyShapePrinter(custom_message="Shape at output after classification")),
-            # Shape: [batch_size]
-            Identity()
+            NumpyMean(),
+            NumpyMedian(),
+            NumpyMin(),
+            NumpyMax()
+        ], joiner=NumpyConcatenateInnerFeatures()),
+        TrainOnlyWrapper(NumpyShapePrinter(custom_message="Shape after feature union, before classification")),
+        # Shape: [batch_size, remade_features]
+        # TODO in kata 2, optional: Add some feature selection right here for the motivated ones:
+        #      https://scikit-learn.org/stable/modules/feature_selection.html
+        # TODO in kata 2, optional: Add normalization right here (if using other classifiers)
+        #      https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.normalize.html
+        ChooseOneStepOf([
+            decision_tree_classifier,
+            extra_tree_classifier,
+            ridge_classifier,
+            logistic_regression,
+            random_forest_classifier
         ]),
+        TrainOnlyWrapper(NumpyShapePrinter(custom_message="Shape at output after classification")),
+        # Shape: [batch_size]
+        Identity()
+    ])
+
+    auto_ml = AutoML(
+        pipeline=pipeline,
         hyperparams_optimizer=RandomSearchHyperparameterSelectionStrategy(),
         validation_split_function=validation_splitter(test_size=0.20),
         scoring_callback=ScoringCallback(accuracy_score, higher_score_is_better=False),
@@ -512,10 +506,10 @@ def main():
     X_train, y_train, X_test, y_test = load_all_data()
 
     auto_ml = auto_ml.fit(X_train, y_train)
-    pipeline = auto_ml.get_best_model()
+    best_pipeline = auto_ml.get_best_model()
 
     # Predict on test data and score:
-    y_pred = pipeline.predict(X_test)
+    y_pred = best_pipeline.predict(X_test)
 
     accuracy = accuracy_score(y_true=y_test, y_pred=y_pred)
     print("Test accuracy score:", accuracy)
