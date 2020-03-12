@@ -209,7 +209,7 @@ def main():
             MetricCallback('mse', metric_function=mean_squared_error, higher_score_is_better=False),
             MetricCallback('accuracy', metric_function=accuracy_score, higher_score_is_better=True)
         ],
-        n_trials=3,
+        n_trials=6,
         refit_trial=True,
         epochs=1,
         hyperparams_repository=InMemoryHyperparamsRepository(cache_folder=cache_folder),
