@@ -1,2 +1,1 @@
-# -e git://github.com/alexbrillant/Neuraxle.git@new-automl-loop#egg=neuraxle
-neuraxle==0.3.3
+neuraxle==0.4.0
